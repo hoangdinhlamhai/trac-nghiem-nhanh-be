@@ -1,0 +1,205 @@
+// TracNghiemNhanh - Database Schema
+// Prisma 5.x | PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================
+// 📂 CATEGORIES - Danh mục quiz
+// ============================================
+model Category {
+  id           String   @id @default(uuid())
+  name         String   @db.VarChar(100)       // "Test MBTI"
+  slug         String   @unique @db.VarChar(100) // "test-mbti"
+  description  String?  @db.Text
+  iconUrl      String?  @map("icon_url") @db.VarChar(500)
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  quizzes Quiz[]
+
+  @@map("categories")
+}
+
+// ============================================
+// 📝 QUIZZES - Bài test
+// ============================================
+model Quiz {
+  id              String   @id @default(uuid())
+  categoryId      String   @map("category_id")
+  title           String   @db.VarChar(255)       // "Bài Test MBTI Chuẩn Quốc Tế"
+  slug            String   @unique @db.VarChar(255) // "mbti-quiz"
+  description     String?  @db.Text
+  instruction     String?  @db.Text               // Hướng dẫn trước khi làm bài
+  quizType        QuizType @default(MBTI) @map("quiz_type")
+  timeLimitMins   Int      @default(30) @map("time_limit_mins")
+  totalQuestions  Int      @default(0) @map("total_questions")
+  isPublished     Boolean  @default(true) @map("is_published")
+  viewCount       Int      @default(0) @map("view_count")
+  completionCount Int      @default(0) @map("completion_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  category  Category       @relation(fields: [categoryId], references: [id])
+  questions Question[]
+  results   UserResult[]
+  favorites UserFavorite[]
+
+  @@index([categoryId])
+  @@map("quizzes")
+}
+
+enum QuizType {
+  MBTI
+  SCORED
+  PERSONALITY
+}
+
+// ============================================
+// ❓ QUESTIONS - Câu hỏi
+// ============================================
+model Question {
+  id           String       @id @default(uuid())
+  quizId       String       @map("quiz_id")
+  content      String       @db.Text             // "Khi tiếp nhận thông tin mới, bạn ưu tiên:"
+  orderNumber  Int          @map("order_number")
+  questionType QuestionType @default(SINGLE) @map("question_type")
+
+  quiz    Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@index([quizId, orderNumber])
+  @@map("questions")
+}
+
+enum QuestionType {
+  SINGLE
+  MULTIPLE
+}
+
+// ============================================
+// 💡 ANSWERS - Đáp án
+// ============================================
+model Answer {
+  id            String  @id @default(uuid())
+  questionId    String  @map("question_id")
+  content       String  @db.Text               // "Chi tiết cụ thể"
+  isCorrect     Boolean @default(false) @map("is_correct")   // cho dạng SCORED
+  scoreValue    Int     @default(0) @map("score_value")      // điểm số
+  mbtiDimension String? @map("mbti_dimension") @db.VarChar(5) // "EI", "SN", "TF", "JP"
+  mbtiPole      String? @map("mbti_pole") @db.Char(1)        // "E","I","S","N","T","F","J","P"
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("answers")
+}
+
+// ============================================
+// 👤 USERS - Người dùng (tạm giữ để schema đầy đủ)
+// ============================================
+model User {
+  id           String    @id @default(uuid())
+  name         String    @db.VarChar(100)
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  avatarUrl    String?   @map("avatar_url") @db.VarChar(500)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  results   UserResult[]
+  favorites UserFavorite[]
+
+  @@map("users")
+}
+
+// ============================================
+// 📊 USER_RESULTS - Kết quả làm bài
+// ============================================
+model UserResult {
+  id            String   @id @default(uuid())
+  userId        String?  @map("user_id")          // nullable: guest có thể làm bài
+  quizId        String   @map("quiz_id")
+  answersData   Json?    @map("answers_data")      // [{questionId, answerId}]
+  scoreData     Json?    @map("score_data")        // {E:20, I:15, S:18, N:17, ...}
+  resultType    String?  @map("result_type") @db.VarChar(50) // "INTJ" | "120" | "D"
+  timeSpentSecs Int?     @map("time_spent_secs")
+  isUnlocked    Boolean  @default(false) @map("is_unlocked") // CPA gate đã unlock?
+  completedAt   DateTime @default(now()) @map("completed_at")
+
+  user    User? @relation(fields: [userId], references: [id])
+  quiz    Quiz  @relation(fields: [quizId], references: [id])
+  cpaLogs CpaLog[]
+
+  @@index([userId])
+  @@index([quizId])
+  @@index([completedAt])
+  @@map("user_results")
+}
+
+// ============================================
+// ❤️ USER_FAVORITES - Quiz yêu thích
+// ============================================
+model UserFavorite {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  quizId    String   @map("quiz_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, quizId])
+  @@map("user_favorites")
+}
+
+// ============================================
+// 💰 CPA_CAMPAIGNS - Chiến dịch quảng cáo
+// ============================================
+model CpaCampaign {
+  id              String    @id @default(uuid())
+  name            String    @db.VarChar(255)       // "Maison Grand Q2/2026"
+  searchKeyword   String    @map("search_keyword") @db.VarChar(255) // "maison grand"
+  targetUrl       String    @map("target_url") @db.VarChar(500)
+  targetPreview   Json?     @map("target_preview") // {title, description, image}
+  unlockCode      String    @map("unlock_code") @db.VarChar(10)     // "12345"
+  isActive        Boolean   @default(true) @map("is_active")
+  clickCount      Int       @default(0) @map("click_count")
+  revenuePerClick Decimal   @default(0) @map("revenue_per_click") @db.Decimal(10, 2)
+  startDate       DateTime? @map("start_date")
+  endDate         DateTime? @map("end_date")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  logs CpaLog[]
+
+  @@map("cpa_campaigns")
+}
+
+// ============================================
+// 📋 CPA_LOGS - Lịch sử verify mã
+// ============================================
+model CpaLog {
+  id           String   @id @default(uuid())
+  campaignId   String?  @map("campaign_id")
+  resultId     String?  @map("result_id")
+  userIp       String?  @map("user_ip") @db.VarChar(45)
+  userAgent    String?  @map("user_agent") @db.Text
+  codeEntered  String?  @map("code_entered") @db.VarChar(10)
+  codeVerified Boolean  @default(false) @map("code_verified")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  campaign CpaCampaign? @relation(fields: [campaignId], references: [id])
+  result   UserResult?  @relation(fields: [resultId], references: [id])
+
+  @@index([campaignId])
+  @@index([createdAt])
+  @@map("cpa_logs")
+}
