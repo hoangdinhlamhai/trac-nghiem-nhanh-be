@@ -5,9 +5,12 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Homepage: chỉ lấy danh mục gốc (parentId = null)
+   */
   async findAll() {
     const categories = await this.prisma.category.findMany({
-      where: { isActive: true }, // Lấy tất cả danh mục
+      where: { isActive: true, parentId: null },
       orderBy: { displayOrder: 'asc' },
       include: {
         children: {
@@ -18,7 +21,7 @@ export class CategoriesService {
         quizzes: {
           where: { isPublished: true },
           orderBy: { createdAt: 'desc' },
-          take: 6, // Giới hạn 6 quiz cho homepage
+          take: 6,
           select: {
             id: true,
             title: true,
@@ -47,10 +50,14 @@ export class CategoriesService {
     }));
   }
 
+  /**
+   * Trang chi tiết: trả category + children (kèm quizzes) + quizzes trực tiếp
+   */
   async findBySlug(slug: string) {
     const category = await this.prisma.category.findUnique({
       where: { slug },
       include: {
+        // Quizzes trực tiếp thuộc category này
         quizzes: {
           where: { isPublished: true },
           orderBy: { createdAt: 'desc' },
@@ -66,6 +73,30 @@ export class CategoriesService {
             completionCount: true,
           },
         },
+        // Danh mục con + quizzes của từng danh mục con
+        children: {
+          where: { isActive: true },
+          orderBy: { displayOrder: 'asc' },
+          include: {
+            quizzes: {
+              where: { isPublished: true },
+              orderBy: { createdAt: 'desc' },
+              select: {
+                id: true,
+                title: true,
+                slug: true,
+                description: true,
+                quizType: true,
+                timeLimitMins: true,
+                totalQuestions: true,
+                viewCount: true,
+                completionCount: true,
+              },
+            },
+            _count: { select: { quizzes: { where: { isPublished: true } } } },
+          },
+        },
+        _count: { select: { quizzes: { where: { isPublished: true } } } },
       },
     });
 
@@ -79,7 +110,16 @@ export class CategoriesService {
       slug: category.slug,
       description: category.description,
       iconUrl: category.iconUrl,
+      quizCount: category._count.quizzes,
       quizzes: category.quizzes,
+      children: category.children.map((child) => ({
+        id: child.id,
+        name: child.name,
+        slug: child.slug,
+        description: child.description,
+        quizCount: child._count.quizzes,
+        quizzes: child.quizzes,
+      })),
     };
   }
 }
