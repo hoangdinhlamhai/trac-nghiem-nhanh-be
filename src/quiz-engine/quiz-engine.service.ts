@@ -64,6 +64,60 @@ export class QuizEngineService {
   }
 
   /**
+   * Score a SCORED quiz submission.
+   * Detects quiz subtype by category:
+   * - Category 'test-tam-ly' → psychology scale (count correct as score, show as scale)
+   * - Other categories → standard test (count correct answers, show as percentage)
+   */
+  async scoreScored(quizId: string, userAnswers: AnswerItem[]) {
+    // Check category to determine scoring mode
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: { category: { select: { slug: true } } },
+    });
+
+    const isPsychologyTest = quiz?.category?.slug === 'test-tam-ly';
+
+    const answerIds = userAnswers.map((a) => a.answerId);
+
+    const dbAnswers = await this.prisma.answer.findMany({
+      where: { id: { in: answerIds } },
+      select: {
+        id: true,
+        isCorrect: true,
+      },
+    });
+
+    const answerMap = new Map(dbAnswers.map((a) => [a.id, a]));
+
+    let correct = 0;
+    for (const ua of userAnswers) {
+      const answer = answerMap.get(ua.answerId);
+      if (answer?.isCorrect) {
+        correct++;
+      }
+    }
+
+    if (isPsychologyTest) {
+      // Psychology test: correct answers = "best" answers, show as scale
+      return {
+        correct,
+        total: userAnswers.length,
+        isScale: 1,
+        scaleScore: correct,
+        scaleMax: userAnswers.length,
+      };
+    }
+
+    // Standard test: count correct answers
+    return {
+      correct,
+      total: userAnswers.length,
+      isScale: 0,
+    };
+  }
+
+  /**
    * Submit a quiz: score it and save the result.
    */
   async submitQuiz(
@@ -88,8 +142,16 @@ export class QuizEngineService {
       const mbtiResult = await this.scoreMBTI(quizId, answers);
       resultType = mbtiResult.resultType;
       scoreData = mbtiResult.scoreData;
+    } else if (quiz.quizType === 'SCORED') {
+      const scoredResult = await this.scoreScored(quizId, answers);
+      if (scoredResult.isScale) {
+        resultType = String(scoredResult.scaleScore ?? 0);
+      } else {
+        resultType = String(scoredResult.correct);
+      }
+      scoreData = scoredResult as any;
     }
-    // TODO: SCORED and PERSONALITY types
+    // TODO: PERSONALITY type
 
     // Save result
     const result = await this.prisma.userResult.create({
@@ -100,7 +162,7 @@ export class QuizEngineService {
         scoreData: scoreData as any,
         resultType,
         timeSpentSecs,
-        isUnlocked: false, // Requires CPA gate
+        isUnlocked: false, // Locked by default — user phải nhập mã để xem kết quả
       },
     });
 

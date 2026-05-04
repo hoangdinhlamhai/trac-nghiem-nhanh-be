@@ -1,6 +1,8 @@
 import { seedQuizList, prisma } from './seed-runner';
+import { seedMBTIQuizList, prisma as mbtiPrisma } from './test-mbti/seed-mbti-runner';
 
 // Import tất cả seed data theo category
+import testMBTI from './test-mbti';
 import testTamLy from './test-tam-ly';
 import thptToan from './trac-nghiem-thpt-toan';
 import thptVatLy from './trac-nghiem-thpt-vat-ly';
@@ -61,6 +63,13 @@ async function main() {
   let totalCreated = 0;
   let totalSkipped = 0;
 
+  // Seed MBTI quizzes trước (dùng seedMBTIQuizList vì answer có mbtiDimension/mbtiPole)
+  console.log(`\n📂 Test MBTI (${testMBTI.length} đề)`);
+  console.log('─'.repeat(50));
+  const mbtiResult = await seedMBTIQuizList(testMBTI);
+  totalCreated += mbtiResult.created;
+  totalSkipped += mbtiResult.skipped;
+
   for (const seed of allSeeds) {
     console.log(`\n📂 ${seed.name} (${seed.data.length} đề)`);
     console.log('─'.repeat(50));
@@ -94,4 +103,5 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
+    await mbtiPrisma.$disconnect();
   });

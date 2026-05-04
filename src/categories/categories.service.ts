@@ -6,7 +6,9 @@ export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Homepage: chỉ lấy danh mục gốc (parentId = null)
+   * Homepage: lấy danh mục gốc (parentId = null).
+   * Với category có children (phân cấp), gom quizzes từ tất cả children
+   * rồi lấy ngẫu nhiên tối đa 6 đề để hiển thị trên trang chủ.
    */
   async findAll() {
     const categories = await this.prisma.category.findMany({
@@ -18,10 +20,10 @@ export class CategoriesService {
           orderBy: { displayOrder: 'asc' },
           select: { id: true, name: true, slug: true },
         },
+        // Quizzes trực tiếp thuộc category gốc (VD: Test MBTI, Test Tâm Lý)
         quizzes: {
           where: { isPublished: true },
           orderBy: { createdAt: 'desc' },
-          take: 6,
           select: {
             id: true,
             title: true,
@@ -38,16 +40,64 @@ export class CategoriesService {
       },
     });
 
-    return categories.map((cat) => ({
-      id: cat.id,
-      name: cat.name,
-      slug: cat.slug,
-      description: cat.description,
-      iconUrl: cat.iconUrl,
-      quizCount: cat._count.quizzes,
-      children: cat.children,
-      quizzes: cat.quizzes,
-    }));
+    // Xử lý từng category: nếu có children thì gom quizzes từ children
+    const result = await Promise.all(
+      categories.map(async (cat) => {
+        let quizzes = cat.quizzes;
+        let totalQuizCount = cat._count.quizzes;
+
+        // Nếu category có children và chưa có quizzes trực tiếp → lấy từ children
+        if (cat.children.length > 0) {
+          const childIds = cat.children.map((c) => c.id);
+          const childQuizzes = await this.prisma.quiz.findMany({
+            where: {
+              categoryId: { in: childIds },
+              isPublished: true,
+            },
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              description: true,
+              quizType: true,
+              timeLimitMins: true,
+              totalQuestions: true,
+              viewCount: true,
+              completionCount: true,
+            },
+          });
+
+          // Gộp quizzes trực tiếp + quizzes từ children
+          const allQuizzes = [...quizzes, ...childQuizzes];
+          totalQuizCount = allQuizzes.length;
+
+          // Lấy ngẫu nhiên tối đa 6 đề
+          quizzes = this.pickRandom(allQuizzes, 6);
+        } else {
+          // Category không có children → lấy tối đa 6 đề mới nhất
+          quizzes = quizzes.slice(0, 6);
+        }
+
+        return {
+          id: cat.id,
+          name: cat.name,
+          slug: cat.slug,
+          description: cat.description,
+          iconUrl: cat.iconUrl,
+          quizCount: totalQuizCount,
+          children: cat.children,
+          quizzes,
+        };
+      }),
+    );
+
+    return result;
+  }
+
+  /** Lấy ngẫu nhiên n phần tử từ mảng */
+  private pickRandom<T>(arr: T[], n: number): T[] {
+    const shuffled = [...arr].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, n);
   }
 
   /**
