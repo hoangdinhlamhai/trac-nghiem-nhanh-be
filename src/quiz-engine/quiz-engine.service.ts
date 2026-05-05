@@ -44,8 +44,11 @@ export class QuizEngineService {
 
     for (const ua of userAnswers) {
       const answer = answerMap.get(ua.answerId);
-      if (answer?.mbtiPole && answer.mbtiPole in scores) {
-        scores[answer.mbtiPole as keyof MBTIScores]++;
+      if (answer?.mbtiPole) {
+        const pole = answer.mbtiPole.trim();
+        if (pole in scores) {
+          scores[pole as keyof MBTIScores]++;
+        }
       }
     }
 
