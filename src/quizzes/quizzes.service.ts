@@ -45,7 +45,7 @@ export class QuizzesService {
       instruction: quiz.instruction,
       quizType: quiz.quizType,
       timeLimitMins: quiz.timeLimitMins,
-      totalQuestions: quiz.totalQuestions,
+      totalQuestions: quiz.questions.length,
       viewCount: quiz.viewCount,
       completionCount: quiz.completionCount,
       category: quiz.category,

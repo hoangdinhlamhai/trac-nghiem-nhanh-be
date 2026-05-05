@@ -31,9 +31,9 @@ export class CategoriesService {
             description: true,
             quizType: true,
             timeLimitMins: true,
-            totalQuestions: true,
             viewCount: true,
             completionCount: true,
+            _count: { select: { questions: true } },
           },
         },
         _count: { select: { quizzes: { where: { isPublished: true } } } },
@@ -61,9 +61,9 @@ export class CategoriesService {
               description: true,
               quizType: true,
               timeLimitMins: true,
-              totalQuestions: true,
               viewCount: true,
               completionCount: true,
+              _count: { select: { questions: true } },
             },
           });
 
@@ -86,7 +86,11 @@ export class CategoriesService {
           iconUrl: cat.iconUrl,
           quizCount: totalQuizCount,
           children: cat.children,
-          quizzes,
+          quizzes: quizzes.map((q: any) => ({
+            ...q,
+            totalQuestions: q._count?.questions || 0,
+            _count: undefined,
+          })),
         };
       }),
     );
@@ -118,9 +122,9 @@ export class CategoriesService {
             description: true,
             quizType: true,
             timeLimitMins: true,
-            totalQuestions: true,
             viewCount: true,
             completionCount: true,
+            _count: { select: { questions: true } },
           },
         },
         // Danh mục con + quizzes của từng danh mục con
@@ -138,9 +142,9 @@ export class CategoriesService {
                 description: true,
                 quizType: true,
                 timeLimitMins: true,
-                totalQuestions: true,
                 viewCount: true,
                 completionCount: true,
+                _count: { select: { questions: true } },
               },
             },
             _count: { select: { quizzes: { where: { isPublished: true } } } },
@@ -161,14 +165,22 @@ export class CategoriesService {
       description: category.description,
       iconUrl: category.iconUrl,
       quizCount: category._count.quizzes,
-      quizzes: category.quizzes,
+      quizzes: category.quizzes.map((q: any) => ({
+        ...q,
+        totalQuestions: q._count?.questions || 0,
+        _count: undefined,
+      })),
       children: category.children.map((child) => ({
         id: child.id,
         name: child.name,
         slug: child.slug,
         description: child.description,
         quizCount: child._count.quizzes,
-        quizzes: child.quizzes,
+        quizzes: child.quizzes.map((q: any) => ({
+          ...q,
+          totalQuestions: q._count?.questions || 0,
+          _count: undefined,
+        })),
       })),
     };
   }
