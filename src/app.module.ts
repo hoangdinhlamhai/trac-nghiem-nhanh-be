@@ -5,6 +5,7 @@ import { CategoriesModule } from './categories/categories.module.js';
 import { QuizzesModule } from './quizzes/quizzes.module.js';
 import { QuizEngineModule } from './quiz-engine/quiz-engine.module.js';
 import { ResultsModule } from './results/results.module.js';
+import { DiscussionsModule } from './discussions/discussions.module.js';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ResultsModule } from './results/results.module.js';
     QuizzesModule,
     QuizEngineModule,
     ResultsModule,
+    DiscussionsModule,
   ],
 })
 export class AppModule {}

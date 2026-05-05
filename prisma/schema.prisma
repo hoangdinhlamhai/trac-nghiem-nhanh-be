@@ -208,3 +208,39 @@ model CpaLog {
   @@index([createdAt])
   @@map("cpa_logs")
 }
+
+// ============================================
+// 💬 DISCUSSIONS - Bài thảo luận
+// ============================================
+model Discussion {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(255)
+  slug        String   @unique @db.VarChar(255)
+  content     String?  @db.Text
+  excerpt     String?  @db.VarChar(500)
+  tag         String?  @db.VarChar(50)
+  authorName  String   @map("author_name") @db.VarChar(100)
+  isPublished Boolean  @default(true) @map("is_published")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  comments Comment[]
+
+  @@map("discussions")
+}
+
+// ============================================
+// 📝 COMMENTS - Bình luận
+// ============================================
+model Comment {
+  id           String   @id @default(uuid())
+  discussionId String   @map("discussion_id")
+  authorName   String   @map("author_name") @db.VarChar(100)
+  authorEmail  String   @map("author_email") @db.VarChar(255)
+  content      String   @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  discussion Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+
+  @@index([discussionId])
+  @@map("comments")
+}
